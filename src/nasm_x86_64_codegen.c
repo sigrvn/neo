@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "codegen.h"
 #include "ir.h"
+#include "symtab.h"
 #include "util.h"
 
 #define CODE_CAPACITY 4096
@@ -249,33 +250,6 @@ static Register *find_register_for_variable(const char *var) {
   return NULL;
 }
 
-/*
-   static void alloc_global_symbols() {
-   _writeln("section .bss");
-
-   for (size_t i = 0; i < symbols.capacity; i++) {
-   map_entry entry = symbols.entries[i];
-   if (entry.key) {
-   symbol *sym = (symbol *)entry.value;
-   if (sym->name && sym->kind == SYM_VAR) {
-   type_info type = sym->node->var.type;
-
-// Try to reserve memory using the directive which is the GCD of the type size
-int alloc = RESB;
-if (type.size % RESQ == 0)
-alloc = RESQ;
-else if (type.size % RESD == 0)
-alloc = RESD;
-
-int bytes_to_alloc = type.size / alloc;
-const char *directive = uninit_mem[alloc];
-
-_write("%s: %s %d\n", sym->name, directive, bytes_to_alloc);
-}
-}
-}
-}
-*/
 
 static Register *put_variable_in_register(Instruction *inst) {
   Register *r = find_available_register();
@@ -371,7 +345,7 @@ static void compile_instruction(Instruction *inst) {
   switch (inst->opcode) {
     case OP_DEF:
       break;
-    case OP_ASSIGN: 
+    case OP_ASSIGN:
       compile_assign(inst);
       break;
     case OP_ADD:
@@ -400,6 +374,32 @@ static void compile_block(BasicBlock *block) {
   compile_block(block->next);
 }
 
+static void alloc_global_symbols() {
+  _writeln("section .bss");
+
+  for (size_t i = 0; i < SYMTAB.symbols.capacity; i++) {
+    MapEntry entry = SYMTAB.symbols.entries[i];
+    if (entry.key) {
+      Symbol *symbol = (Symbol *)entry.value;
+      if (symbol->name && symbol->kind == SYM_VAR) {
+        Type *type = symbol->node->var.type;
+
+        // Try to reserve memory using the directive which is the GCD of the type size
+        int alloc = RESB;
+        if (type->size % RESQ == 0)
+          alloc = RESQ;
+        else if (type->size % RESD == 0)
+          alloc = RESD;
+
+        int bytes_to_alloc = type->size / alloc;
+        const char *directive = uninit_mem[alloc];
+
+        _write("%s: %s %d\n", symbol->name, directive, bytes_to_alloc);
+      }
+    }
+  }
+}
+
 Target nasm_x86_64_generate(BasicBlock *prog) {
   /* Initialize codegen state */
   memset(registers, 0, sizeof(Register) * NUM_REGISTERS);
@@ -412,7 +412,7 @@ Target nasm_x86_64_generate(BasicBlock *prog) {
   code_capacity = 0;
 
   /* Allocate space for uninitialized global variables */
-  // alloc_global_symbols();
+  alloc_global_symbols();
 
   _writeln("section .text");
   /* TODO: define external linkage here */

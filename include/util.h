@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifdef DEBUG
 #define UNUSED(x) (void)x
@@ -22,7 +23,11 @@
 #define LOG_INFO(fmt, ...)  fprintf(stderr, ANSI_GREEN "info: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...)  fprintf(stderr, ANSI_YELLOW "warn: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
 #define LOG_ERROR(fmt, ...) fprintf(stderr, ANSI_RED "error: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
-#define LOG_FATAL(fmt, ...) fprintf(stderr, "fatal: "fmt"\n", ##__VA_ARGS__)
+#define LOG_FATAL(fmt, ...) \
+  do { \
+    fprintf(stderr, "fatal: "fmt"\n", ##__VA_ARGS__); \
+    exit(1); \
+  } while (0)
 
 uint64_t djb2(const char *s);
 uint64_t fnv1a64(const char *s);

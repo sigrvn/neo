@@ -274,7 +274,6 @@ int main(int argc, char **argv) {
   warn_unused(ast);
 
   /* Codegen */
-  /*
   Target target = nasm_x86_64_generate(prog);
 
 #ifdef DEBUG
@@ -303,7 +302,6 @@ int main(int argc, char **argv) {
   free(obj_filepath);
 
   unlink(BUILD_ARTIFACT);
-  */
 
   return 0;
 }

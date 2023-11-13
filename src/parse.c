@@ -160,8 +160,9 @@ static Node *parse_character() {
   Node *node = node_new(ND_VALUE_EXPR);
   node->type = &PRIMITIVES[TY_CHAR];
   node->value.kind = VAL_CHAR;
-  node->value.c_val = prev_tok->text[0];
+  node->value.c_val = tok->text[0];
   node->next = NULL;
+  advance();
   return node;
 }
 
@@ -169,7 +170,7 @@ static void parse_factor(Node **stack) {
   Node *node = NULL;
 
   if (tok->kind == TOK_IDENT) {
-    node = parse_identifier(tok);
+    node = parse_identifier();
   } else if (tok->kind == TOK_NUMBER) {
     node = parse_number();
   } else if (tok->kind == TOK_CHAR) {
@@ -296,7 +297,8 @@ static Node *parse_varref(Token *ident) {
   return node;
 }
 
-static Node *parse_vardecl(Token *ident, bool infer_type) {
+static Node *parse_vardecl() {
+  Token *ident = tok;
   assert(ident->kind == TOK_IDENT);
 
   Node *node = node_new(ND_VAR_DECL);
@@ -312,8 +314,10 @@ static Node *parse_vardecl(Token *ident, bool infer_type) {
         ident->span.line, ident->span.col, ident->len, ident->text);
   }
 
+  advance(); /* advance from <identifier> */
+
   /* Parse assignment and/or type declaration of variable */
-  if (infer_type) {
+  if (match("=")) {
     node->var.value = parse_expression();
     /* Infer type from expression */
     node->var.type = node->var.value->type;
@@ -363,9 +367,7 @@ static Node* parse_identifier() {
   advance(); /* advance from <identifier> */
 
   Node *stmt = NULL;
-  if (match(":=")) {
-    stmt = parse_vardecl(ident, true);
-  } else if (match("=")) {
+  if (match("=")) {
     stmt = parse_assignment(ident);
   } else if (match("(")) {
     stmt = parse_call(ident);
@@ -388,6 +390,8 @@ static Node *parse_block() {
 
     if (tok->kind == TOK_IDENT) {
       stmt = parse_identifier();
+    } else if (match("var")) {
+      stmt = parse_vardecl();
     } else if (match("if")) {
       stmt = parse_if_statement();
     } else if (match("else")) {
@@ -505,10 +509,8 @@ Node *parse(Token *tokens) {
 
   Node *decl = NULL;
   while (tok->kind != TOK_EOF) {
-    if (tok->kind == TOK_IDENT) {
-      Token *ident = tok;
-      advance();
-      decl = parse_vardecl(ident, false);
+    if (match("var")) {
+      decl = parse_vardecl();
     } else if (match("func")) {
       decl = parse_funcdecl();
     } else {
