@@ -1,16 +1,16 @@
 /*
 func ssa1() {
-    y := 1;
+    var y = 1;
     y = 2;
-    x := y;
+    var x = y;
 }
 */
 
 func main() -> int {
-    x := 5;
+    var x = 5;
     x = x - 3;
-    y := 0;
-    w := 0;
+    var y = 0;
+    var w = 0;
 
     if x < 3 {
         y = x * 2;
@@ -20,6 +20,6 @@ func main() -> int {
     }
 
     w = x - y;
-    z := x + y;
+    var z = x + y;
     return z;
 }

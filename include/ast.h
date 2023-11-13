@@ -4,21 +4,21 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "defs.h"
+#include "compiler.h"
 #include "types.h"
 
 typedef struct Node Node;
 
 typedef struct {
   char *name;
-  Type *return_type;
+  const Type *return_type;
   Node *params;
   Node *body;
 } FuncDecl;
 
 typedef struct {
   char *name;
-  Type *type;
+  const Type *type;
   Node *value;
 } VarDecl;
 
@@ -131,10 +131,11 @@ struct Node {
   };
   bool visited;
   Span span;
-  Type *type;
+  const Type *type;
   Node *next;
 };
 
 void dump_node(Node *node, int level);
+void warn_unused(Node *ast);
 
 #endif

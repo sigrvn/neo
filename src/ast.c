@@ -195,3 +195,23 @@ uint8_t *copy_value(Value *val, size_t *value_size) {
   *value_size = size;
   return bytes;
 }
+
+void warn_unused(Node *ast) {
+  Node *node = ast;
+  while (node) {
+    if (!node->visited) {
+      switch (node->kind) {
+        case ND_FUNC_DECL:
+          LOG_WARN("unused function %s at line %d, col %d",
+              node->func.name, node->span.line, node->span.col);
+          break;
+        case ND_VAR_DECL:
+          LOG_WARN("unused variable %s at line %d, col %d",
+              node->var.name, node->span.line, node->span.col);
+          break;
+        default: break;
+      }
+    }
+    node = node->next;
+  }
+}

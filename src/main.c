@@ -1,15 +1,14 @@
 #include <errno.h>
-#include <fcntl.h>
+#include <getopt.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include "ast.h"
 #include "codegen.h"
-#include "defs.h"
+#include "compiler.h"
 #include "lex.h"
 #include "ir.h"
 #include "optimize.h"
@@ -18,107 +17,105 @@
 #include "types.h"
 #include "util.h"
 
+#define NEO_VERSION "0.1.0"
+
 #define DUMP_TOKENS   (1 << 1)
 #define DUMP_AST      (1 << 2)
 #define DUMP_SYMBOLS  (1 << 3)
 #define DUMP_IR       (1 << 4)
 
-#define BUILD_ARTIFACT "/tmp/neo-build-artifact"
+#define DEFAULT_FEATURES (CONSTANT_FOLDING)
 
-#define CONSTANT_FOLDING (1 << 1)
-#define DEFAULT_OPTIMIZATIONS (CONSTANT_FOLDING)
+typedef struct {
+  char *name;
+  int val;
+} Feature;
 
-/* Compiler Options */
-int opt_dflags = 0;
-int opt_oflags = DEFAULT_OPTIMIZATIONS;
-char *opt_inpath = NULL;
-char *opt_outpath = "a.out";
+typedef struct {
+  int dflags;
+  int fflags;
 
-static void parse_opts(int argc, char **argv) {
-  for (int i = 1; i < argc; i++) {
-    char *arg = argv[i];
+  char *output;
 
-    if (strcmp(arg, "-o") == 0) {
-      if (++i >= argc)
-        LOG_FATAL("not enough arguments for option '%s'", arg);
+  char **sources;
+  size_t nsources;
 
-      opt_outpath = argv[i];
-      continue;
-    }
+  bool verbose;
+} CompilerOpts;
 
-    if (strcmp(arg, "-dT") == 0) {
-      opt_dflags |= DUMP_TOKENS;
-      continue;
-    }
+#define OPTSTRING "d:o:v"
+static struct option long_options[] = {
+  {"dump", required_argument, 0, 'd'},
+  {"feature", required_argument, 0, 'f'},
+  {"output", required_argument, 0, 'o'},
+  {"verbose", no_argument, 0, 'v'},
+  {0, 0, 0, 0}
+};
 
-    if (strcmp(arg, "-dA") == 0) {
-      opt_dflags |= DUMP_AST;
-      continue;
-    }
+void set_dump_flag(int *dflags, const char *arg) {
+  static const char *dump_map[] = {
+    [DUMP_TOKENS] = "tok",
+    [DUMP_AST] = "ast",
+    [DUMP_SYMBOLS] = "sym",
+    [DUMP_IR] = "ir",
+  };
 
-    if (strcmp(arg, "-dIR") == 0) {
-      opt_dflags |= DUMP_IR;
-      continue;
-    }
-
-    if (strcmp(arg, "-dSY") == 0) {
-      opt_dflags |= DUMP_SYMBOLS;
-      continue;
-    }
-
-    if (strcmp(arg, "--no-fold") == 0) {
-      opt_oflags ^= CONSTANT_FOLDING;
-      LOG_WARN("constant folding and common subexpression elimination disabled.");
-      continue;
-    }
-
-    opt_inpath = arg;
-  }
-
-  if (!opt_inpath)
-    LOG_FATAL("input file is required");
-}
-
-static char *readfile(const char *filename) {
-  FILE *f = NULL;
-  if (!(f = fopen(filename, "r")))
-    LOG_FATAL("couldn't open file %s: %s", filename, strerror(errno));
-
-  fseek(f, 0L, SEEK_END);
-  size_t file_size = ftell(f);
-  rewind(f);
-
-  char *text = calloc(file_size + 1, sizeof(char));
-  if (!text)
-    LOG_FATAL("no memory for readfile");
-
-  size_t nread = fread(text, sizeof(char), file_size, f);
-  if (nread != file_size)
-    LOG_FATAL("only read %zu/%zu bytes from file %s\n", nread, file_size, filename);
-
-  text[nread] = 0;
-  fclose(f);
-
-  return text;
-}
-
-void dump_tokens(Token *tokens) {
-  Token *tok = tokens;
-  while (tok) {
-    if (tok->kind == TOK_EOF)
-      break;
-    printf("%.*s\n", tok->len, tok->text);
-    tok = tok->next;
+  for (int i = DUMP_TOKENS; i < DUMP_IR; i <<= 1) {
+    if (strcmp(arg, dump_map[i]) == 0)
+      *dflags |= i;
   }
 }
 
-void free_tokens(Token *tokens) {
-  Token *tok = tokens;
-  while (tok) {
-    Token *next = tok->next;
-    free(tok);
-    tok = next;
+void set_feature_flag(int *fflags, const char *arg) {
+  static const Feature feature_map[] = {
+    {"no-fold", CONSTANT_FOLDING},
+  };
+
+  for (const Feature *f = feature_map; f; f++) {
+    if (strcmp(arg, f->name) == 0)
+      *fflags ^= f->val;
   }
+}
+
+static CompilerOpts parse_opts(int argc, char **argv) {
+  CompilerOpts opts = {
+    .dflags = 0,
+    .fflags = DEFAULT_FEATURES,
+    .output = "a.out",
+    .sources = NULL,
+    .nsources = 0,
+  };
+
+  int c, idx;
+  while ((c = getopt_long(argc, argv, OPTSTRING, long_options, &idx)) != -1) {
+    switch (c) {
+      case 'd':
+        set_dump_flag(&opts.dflags, optarg);
+        break;
+      case 'f':
+        set_feature_flag(&opts.fflags, optarg);
+        break;
+      case 'o':
+        opts.output = optarg;
+        break;
+      case 'v':
+        opts.verbose = true;
+        break;
+      case '?':
+        // getopt_long already printed an error message
+        break;
+      default:
+        LOG_FATAL("unknown option: %s", optarg);
+    }
+  }
+
+  if (!(opts.sources = calloc(argc - optind, sizeof(char*))))
+    LOG_FATAL("calloc failed for file sources array");
+
+  for (int i = optind; i < argc; i++)
+    opts.sources[opts.nsources++] = argv[i];
+
+  return opts;
 }
 
 void dump_symbols() {
@@ -138,42 +135,6 @@ void dump_ir(BasicBlock *prog) {
     }
     block = block->next;
   }
-}
-
-void warn_unused(Node *ast) {
-  Node *node = ast;
-  while (node) {
-    if (!node->visited) {
-      switch (node->kind) {
-        case ND_FUNC_DECL:
-          LOG_WARN("unused function %s at line %d, col %d",
-              node->func.name, node->span.line, node->span.col);
-          break;
-        case ND_VAR_DECL:
-          LOG_WARN("unused variable %s at line %d, col %d",
-              node->var.name, node->span.line, node->span.col);
-          break;
-        default: break;
-      }
-    }
-    node = node->next;
-  }
-}
-
-int spawn_subprocess(char *prog, char *const args[]) {
-  int status = 0;
-  pid_t pid = fork();
-  switch (pid) {
-    case -1:
-      return pid;
-    case 0:
-      execvp(prog, args);
-      perror(prog);
-      exit(1);
-    default:
-      waitpid(pid, &status, 0);
-  }
-  return status;
 }
 
 void assemble_target(char *obj_filepath) {
@@ -221,7 +182,7 @@ void init_globals() {
 
   /* Add primitive data types to global scope */
   for (TypeKind ty = TY_VOID; ty <= TY_BOOL; ty++) {
-    Type *primitive = &PRIMITIVES[ty];
+    const Type *primitive = &PRIMITIVES[ty];
     Symbol *symbol = symbol_new(SYM_TYPE);
     symbol->name = primitive->name;
     symbol->type = primitive;
@@ -231,31 +192,31 @@ void init_globals() {
 
 int main(int argc, char **argv) {
   atexit(cleanup);
-  parse_opts(argc, argv);
+  CompilerOpts opts = parse_opts(argc, argv);
 
   init_globals();
 
   /* Lexing */
-  char *source = readfile(opt_inpath);
+  char *source = readfile(opts.sources[0]);
   Token *tokens = lex(source);
-  if (opt_dflags & DUMP_TOKENS)
+  if (opts.dflags & DUMP_TOKENS)
     dump_tokens(tokens);
 
   /* Parsing */
   Node *ast = parse(tokens);
 
-  if (opt_dflags & DUMP_AST)
+  if (opts.dflags & DUMP_AST)
     dump_node(ast, 0);
 
   /* Constant folding optimization */
-  if (opt_oflags & CONSTANT_FOLDING)
+  if (opts.fflags & CONSTANT_FOLDING)
     fold_constants(ast);
 
   /* Free file contents & tokens */
   free_tokens(tokens);
   free(source);
 
-  if (opt_dflags & DUMP_SYMBOLS)
+  if (opts.dflags & DUMP_SYMBOLS)
     dump_symbols();
 
   Symbol *entry_point = find_symbol(&SYMTAB, "main", 4);
@@ -268,7 +229,7 @@ int main(int argc, char **argv) {
   /* Control flow analysis */
   BasicBlock *prog = lower_to_ir(entry_point->node);
 
-  if (opt_dflags & DUMP_IR)
+  if (opts.dflags & DUMP_IR)
     dump_ir(prog);
 
   warn_unused(ast);
@@ -295,13 +256,15 @@ int main(int argc, char **argv) {
   }
   fclose(outfile);
 
-  char *obj_filepath = change_extension(opt_outpath, ".o");
+  char *obj_filepath = change_extension(opts.output, ".o");
 
   assemble_target(obj_filepath);
-  link_target(obj_filepath, opt_outpath);
+  link_target(obj_filepath, opts.output);
   free(obj_filepath);
 
   unlink(BUILD_ARTIFACT);
+
+  free(opts.sources);
 
   return 0;
 }

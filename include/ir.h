@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #include "ast.h"
-#include "defs.h"
+#include "compiler.h"
 #include "hashmap.h"
 #include "types.h"
 

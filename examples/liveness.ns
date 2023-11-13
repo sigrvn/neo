@@ -1,9 +1,9 @@
 func main() -> int {
-  x := 16;
-  y := 4;
+  var x = 16;
+  var y = 4;
 
-  w := x + y;
-  z := y;
+  var w = x + y;
+  var z = y;
 
   return w;
 }

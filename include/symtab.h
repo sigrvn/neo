@@ -16,7 +16,7 @@ typedef struct {
   SymbolKind kind;
   char *name;
   Node *node;
-  Type *type;
+  const Type *type;
 } Symbol;
 
 Symbol *symbol_new(SymbolKind kind);

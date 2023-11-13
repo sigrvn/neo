@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "ast.h"
-#include "defs.h"
+#include "compiler.h"
 #include "hashmap.h"
 #include "parse.h"
 #include "symtab.h"
@@ -142,7 +142,6 @@ static Node *parse_number() {
   node->type = &PRIMITIVES[TY_INT];
   node->value.kind = VAL_INT;
   node->value.i_val = stoi(tok->text, tok->len);
-  node->next = NULL;
   advance();
   return node;
 }
@@ -152,7 +151,6 @@ static Node *parse_boolean(bool value) {
   node->type = &PRIMITIVES[TY_BOOL];
   node->value.kind = VAL_BOOL;
   node->value.b_val = value ? true : false;
-  node->next = NULL;
   return node;
 }
 
@@ -161,14 +159,12 @@ static Node *parse_character() {
   node->type = &PRIMITIVES[TY_CHAR];
   node->value.kind = VAL_CHAR;
   node->value.c_val = tok->text[0];
-  node->next = NULL;
   advance();
   return node;
 }
 
 static void parse_factor(Node **stack) {
   Node *node = NULL;
-
   if (tok->kind == TOK_IDENT) {
     node = parse_identifier();
   } else if (tok->kind == TOK_NUMBER) {
@@ -183,7 +179,6 @@ static void parse_factor(Node **stack) {
     LOG_FATAL("at line %d, col %d: invalid token '%.*s' while parsing expression",
         tok->span.line, tok->span.col, tok->len, tok->text);
   }
-
   push_node(stack, node);
 }
 
@@ -253,7 +248,7 @@ static Node *parse_else_statement() {
   return node;
 }
 
-static Type* parse_type() {
+static const Type* parse_type() {
   if (tok->kind != TOK_IDENT) {
     LOG_FATAL("at line %d, col %d: expected identifier for type, got '%.*s' instead",
         tok->span.line, tok->span.col, tok->len, tok->text);

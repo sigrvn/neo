@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -221,4 +222,23 @@ Token *lex(char *source) {
   }
 
   return head.next;
+}
+
+void dump_tokens(Token *tokens) {
+  Token *tok = tokens;
+  while (tok) {
+    if (tok->kind == TOK_EOF)
+      break;
+    printf("%.*s\n", tok->len, tok->text);
+    tok = tok->next;
+  }
+}
+
+void free_tokens(Token *tokens) {
+  Token *tok = tokens;
+  while (tok) {
+    Token *next = tok->next;
+    free(tok);
+    tok = next;
+  }
 }

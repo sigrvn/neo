@@ -39,4 +39,7 @@ double stod(const char *s, size_t len);
 char *format(const char *fmt, ...);
 char *randstr(size_t len);
 
+char *readfile(const char *filename);
+int spawn_subprocess(char *prog, char *const args[]);
+
 #endif

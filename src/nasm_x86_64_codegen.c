@@ -384,7 +384,7 @@ static void alloc_global_symbols() {
       if (symbol->name && symbol->kind == SYM_VAR) {
         Type *type = symbol->node->var.type;
 
-        // Try to reserve memory using the directive which is the GCD of the type size
+        /* Try to reserve memory using the directive with GCD of the type size */
         int alloc = RESB;
         if (type->size % RESQ == 0)
           alloc = RESQ;
