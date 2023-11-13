@@ -1,0 +1,25 @@
+/*
+func ssa1() {
+    y := 1;
+    y = 2;
+    x := y;
+}
+*/
+
+func main() -> int {
+    x := 5;
+    x = x - 3;
+    y := 0;
+    w := 0;
+
+    if x < 3 {
+        y = x * 2;
+        w = y;
+    } else {
+        y = x - 3;
+    }
+
+    w = x - y;
+    z := x + y;
+    return z;
+}

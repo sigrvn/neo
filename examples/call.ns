@@ -1,0 +1,7 @@
+func add_two(x: int, y: int) -> int {
+  return x + y;
+}
+
+func main() {
+  add_two(1, 2);
+}

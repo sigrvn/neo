@@ -1,0 +1,3 @@
+func main() {
+  var c: char = 'a';
+}

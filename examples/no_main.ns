@@ -1,0 +1,4 @@
+func test() -> int {
+    var a: int;
+    return a;
+}

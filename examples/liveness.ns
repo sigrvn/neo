@@ -1,0 +1,9 @@
+func main() -> int {
+  x := 16;
+  y := 4;
+
+  w := x + y;
+  z := y;
+
+  return w;
+}
