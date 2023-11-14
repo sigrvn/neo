@@ -1,3 +1,4 @@
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,13 +8,42 @@
 #include "util.h"
 
 /* Lexer state */
-static char *filestart  = NULL;
+static File *currfile   = NULL;
 static char *p          = NULL;
 static char *start      = NULL;
+static char *line_start = NULL;
 
 static int line         = 0;
 static int col          = 0;
-static int linepos      = 0;
+
+static void fail_at(Token *tok, const char *fmt, ...) {
+  fprintf(stderr, "%s:%d:%d: ",
+      currfile->filepath,
+      tok->span.line,
+      tok->span.col);
+
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
+
+  fprintf(stderr, "\n");
+
+  while (tok->text < line_start && line_start[-1] != '\n')
+    line_start--;
+
+  char *line_end = line_start;
+  while (*line_end != '\n')
+    line_end++;
+
+  int line_len = line_end - line_start;
+  int nspaces = 3 + count_digits(line) + tok->span.col;
+
+  fprintf(stderr, " %d | %.*s\n", line, line_len, line_start);
+  fprintf(stderr, "%*s^\n", nspaces, "");
+
+  exit(EXIT_FAILURE);
+}
 
 static char next() {
   if (*p == 0)
@@ -21,8 +51,9 @@ static char next() {
 
   char c = *p;
   if (c == '\n') {
-    linepos = (p - filestart) + 1;
-    line++; col = 1;
+    line_start = p + 1;
+    line++;
+    col = 1;
   } else {
     col++;
   }
@@ -71,10 +102,11 @@ static Token* token_new(TokenKind kind) {
   tok->text = p;
   tok->span.line = line;
   tok->span.col  = col;
+  tok->span.file_id = currfile->id;
   return tok;
 }
 
-bool is_keyword(const char *s, int len) {
+static bool is_keyword(const char *s, int len) {
   static const char *keywords[] = {
     "const", "var", "return", "func",
     "import", "export", "struct", "enum",
@@ -88,7 +120,6 @@ bool is_keyword(const char *s, int len) {
       return true;
     }
   }
-
   return false;
 }
 
@@ -119,11 +150,11 @@ static void lex_character(Token *tok) {
   tok->kind = TOK_CHAR;
   char c = next();
   if (c == '\'')
-    LOG_FATAL("at line %d, col %d: missing char", line, col);
+    fail_at(tok, "missing char");
 
   c = next();
   if (c != '\'')
-    LOG_FATAL("at line %d, col %d: char is too long", line, col);
+    fail_at(tok, "char is too long");
 
   tok->len = p - tok->text - 1;
 }
@@ -133,7 +164,7 @@ static void lex_string(Token *tok) {
   tok->kind = TOK_STRING;
   for (char c = next(); c != '"'; c = next()) {
     if (!c)
-      LOG_FATAL("at line %d, col %d: undelimited string", line, col);
+      fail_at(tok, "undelimited string");
   }
   tok->len = p - tok->text - 1;
 }
@@ -162,15 +193,16 @@ static Token *lex_symbol() {
     case '>': match('='); break;
     case '"': lex_string(tok); return tok;
     case '\'': lex_character(tok); return tok;
-    default: LOG_FATAL("at line %d, col %d: unknown character '%c'", line, col, c);
+    default: fail_at(tok, "unknown character '%c'", c);
   }
   tok->len = p - start;
   return tok;
 }
 
-Token *lex(char *source) {
+Token *lex(File *file) {
   /* Initialize lexer state */
-  filestart = p = source;
+  currfile = file;
+  p = file->contents;
   line = col = 1;
 
   Token head = { 0 };

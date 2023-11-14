@@ -45,9 +45,9 @@ struct RegisterData {
 };
 
 static RegisterData *regdata_new(int start, int end) {
-  RegisterData *data = malloc(sizeof(RegisterData));
+  RegisterData *data = calloc(1, sizeof(RegisterData));
   if (!data)
-    LOG_FATAL("malloc failed in regdata_new");
+    LOG_FATAL("calloc failed in regdata_new");
 
   data->start = start;
   data->end = end;
@@ -202,9 +202,10 @@ static void save_register(Register *r) {
     stack_length++;
     stack_size_bytes += data->type->size;
   }
-
+#ifdef DEBUG
   printf("-> saved register '%s' to stack\n", regname(r));
-  printf("\tstack_size: %ld (%ld bytes)\n", stack_length, stack_size_bytes);
+  printf("-> stack_size: %ld (%ld bytes)\n", stack_length, stack_size_bytes);
+#endif
 }
 
 static void restore_register(Register *r) {
@@ -240,7 +241,7 @@ static void release_register(Register *r) {
     free(r->data);
 }
 
-static Register *find_register_for_variable(const char *var) {
+static Register *find_register_by_variable(const char *var) {
   for (RegisterID rid = RAX; rid < NUM_REGISTERS; rid++) {
     Register *r = &registers[rid];
     RegisterData *data = r->data;
@@ -250,12 +251,13 @@ static Register *find_register_for_variable(const char *var) {
   return NULL;
 }
 
-
 static Register *put_variable_in_register(Instruction *inst) {
   Register *r = find_available_register();
   r->data = regdata_new(inst->start, inst->end);
   r->data->var = inst->assignee;
+#ifdef DEBUG
   printf("-> moved variable '%s' to register '%s'\n", inst->assignee, regname(r));
+#endif
   return r;
 }
 
@@ -267,7 +269,7 @@ static Register *compile_assign(Instruction *inst) {
   Register *src_register = NULL;
   Register *dest_register = NULL;
 
-  dest_register = find_register_for_variable(inst->assignee);
+  dest_register = find_register_by_variable(inst->assignee);
   if (!dest_register)
     dest_register = put_variable_in_register(inst);
 
@@ -279,7 +281,7 @@ static Register *compile_assign(Instruction *inst) {
       _write("\n");
       break;
     case O_VARIABLE:
-      src_register = find_register_for_variable(inst->operands[0].var);
+      src_register = find_register_by_variable(inst->operands[0].var);
       if (!src_register)
         LOG_FATAL("operand '%s' is not in any register", inst->operands[0].var);
       /* If not in a register, look for variable in global variables and load that instead */
@@ -298,7 +300,7 @@ static Register *compile_add(Instruction *inst) {
   assert(inst->operands[1].kind != O_UNKNOWN);
   assert(inst->operands[1].kind != O_LABEL);
 
-  Register *dest_register = find_register_for_variable(inst->assignee);
+  Register *dest_register = find_register_by_variable(inst->assignee);
   if (!dest_register)
     dest_register = put_variable_in_register(inst);
 
@@ -325,7 +327,7 @@ static Register *compile_add(Instruction *inst) {
       _write_value(inst->operands[op_idx].val);
       break;
     case O_VARIABLE:
-      Register *src_register = find_register_for_variable(inst->operands[op_idx].var);
+      Register *src_register = find_register_by_variable(inst->operands[op_idx].var);
       if (!src_register)
         LOG_FATAL("operand '%s' is not in any register", inst->operands[op_idx].var);
       _write("%s", regname(src_register));
@@ -345,15 +347,9 @@ static void compile_instruction(Instruction *inst) {
   switch (inst->opcode) {
     case OP_DEF:
       break;
-    case OP_ASSIGN:
-      compile_assign(inst);
-      break;
-    case OP_ADD:
-      compile_add(inst);
-      break;
-    case OP_RET:
-      compile_return(inst);
-      break;
+    case OP_ASSIGN: compile_assign(inst); break;
+    case OP_ADD: compile_add(inst); break;
+    case OP_RET: compile_return(inst); break;
     case OP_DEAD:
       LOG_WARN("ignoring dead variable '%s' at line %d, col %d",
           inst->assignee, inst->span.line, inst->span.col);
@@ -382,7 +378,7 @@ static void alloc_global_symbols() {
     if (entry.key) {
       Symbol *symbol = (Symbol *)entry.value;
       if (symbol->name && symbol->kind == SYM_VAR) {
-        Type *type = symbol->node->var.type;
+        const Type *type = symbol->node->var.type;
 
         /* Try to reserve memory using the directive with GCD of the type size */
         int alloc = RESB;

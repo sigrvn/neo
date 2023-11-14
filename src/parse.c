@@ -1,19 +1,38 @@
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "ast.h"
 #include "compiler.h"
+#include "defs.h"
 #include "hashmap.h"
 #include "parse.h"
 #include "symtab.h"
 #include "types.h"
 #include "util.h"
 
+static File  *currfile  = NULL;
 static Scope *scope     = NULL;
 static Token *prev_tok  = NULL;
 static Token *tok       = NULL;
+
+static void fail_at(Token *tok, const char *fmt, ...) {
+  fprintf(stderr, "%s:%d:%d: ",
+      currfile->filepath,
+      tok->span.line,
+      tok->span.col);
+
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
+
+  fprintf(stderr, "\n");
+
+  exit(EXIT_FAILURE);
+}
 
 static void enter_scope(char *name) {
   Scope *next_scope = scope_new(name);
@@ -434,8 +453,8 @@ static Node *parse_param() {
 
 static Node *parse_funcdecl() {
   if (tok->kind != TOK_IDENT) {
-    LOG_FATAL("at line %d, col %d: expected identifier for function, got '%.*s' instead",
-        tok->span.line, tok->span.col, tok->len, tok->text);
+    fail_at(tok, "expected identifier for function, got '%.*s' instead",
+        tok->len, tok->text);
   }
 
   Node *node = node_new(ND_FUNC_DECL);
@@ -447,8 +466,7 @@ static Node *parse_funcdecl() {
 
   /* Insert function into current scope */
   if (add_symbol(scope, symbol)) {
-    LOG_FATAL("at line %d, col %d: function '%s' redeclared in scope",
-        node->span.line, node->span.col, node->func.name);
+    fail_at(tok, "function '%s' redeclared in scope", node->func.name);
   }
 
   /* Create & enter function scope */
@@ -509,8 +527,8 @@ Node *parse(Token *tokens) {
     } else if (match("func")) {
       decl = parse_funcdecl();
     } else {
-      LOG_FATAL("at line %d, col %d: invalid token '%.*s' while parsing top-level",
-          tok->span.line, tok->span.col, tok->len, tok->text);
+      fail_at(tok, "invalid token '%.*s' while parsing top-level",
+        tok->len, tok->text);
     }
     cur = cur->next = decl;
   }

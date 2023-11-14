@@ -102,15 +102,18 @@ static CompilerOpts parse_opts(int argc, char **argv) {
         opts.verbose = true;
         break;
       case '?':
-        // getopt_long already printed an error message
         break;
       default:
         LOG_FATAL("unknown option: %s", optarg);
     }
   }
 
-  if (!(opts.sources = calloc(argc - optind, sizeof(char*))))
-    LOG_FATAL("calloc failed for file sources array");
+  size_t nsources = argc - optind;
+  if (!nsources)
+    LOG_FATAL("no input files");
+
+  if (!(opts.sources = calloc(nsources, sizeof(char*))))
+    LOG_FATAL("calloc failed for input files");
 
   for (int i = optind; i < argc; i++)
     opts.sources[opts.nsources++] = argv[i];
@@ -120,21 +123,6 @@ static CompilerOpts parse_opts(int argc, char **argv) {
 
 void dump_symbols() {
   hashmap_foreach(&SYMTAB.symbols, print_symbols);
-}
-
-void dump_ir(BasicBlock *prog) {
-  BasicBlock *block = prog;
-  int pc = 0;
-  while (block) {
-    printf("[BasicBlock %s#%d]\n", block->tag, block->id);
-    Instruction *inst = block->head;
-    while (inst) {
-      printf(" %d | ", pc++);
-      dump_instruction(inst);
-      inst = inst->next;
-    }
-    block = block->next;
-  }
 }
 
 void assemble_target(char *obj_filepath) {
@@ -175,7 +163,12 @@ char *change_extension(char *filename, char *new_extension) {
 void cleanup() {
 }
 
-void init_globals() {
+void init_globals(CompilerOpts *opts) {
+  /* Initialize compilation units array */
+  if (!(units = calloc(opts->nsources, sizeof(CompilationUnit))))
+    LOG_FATAL("calloc failed for compilation units");
+
+  /* Initialize symbol table */
   SYMTAB.name = "__SYMTAB__";
   SYMTAB.parent = NULL;
   hashmap_init(&SYMTAB.symbols);
@@ -194,27 +187,33 @@ int main(int argc, char **argv) {
   atexit(cleanup);
   CompilerOpts opts = parse_opts(argc, argv);
 
-  init_globals();
+  init_globals(&opts);
 
-  /* Lexing */
-  char *source = readfile(opts.sources[0]);
-  Token *tokens = lex(source);
-  if (opts.dflags & DUMP_TOKENS)
-    dump_tokens(tokens);
+  for (size_t id = 0; id < opts.nsources; id++) {
+    CompilationUnit *unit = &units[id];
 
-  /* Parsing */
-  Node *ast = parse(tokens);
+    /* Open file for CompilationUnit & read contents */
+    const char *filepath = opts.sources[id];
+    file_open(&unit->file, filepath, id);
 
-  if (opts.dflags & DUMP_AST)
-    dump_node(ast, 0);
+    /* Lexing */
+    Token *tokens = lex(&unit->file);
+    if (opts.dflags & DUMP_TOKENS)
+      dump_tokens(tokens);
 
-  /* Constant folding optimization */
-  if (opts.fflags & CONSTANT_FOLDING)
-    fold_constants(ast);
+    /* Parsing */
+    unit->ast = parse(tokens);
+    if (opts.dflags & DUMP_AST)
+      dump_node(unit->ast, 0);
 
-  /* Free file contents & tokens */
-  free_tokens(tokens);
-  free(source);
+    /* Constant folding optimization */
+    if (opts.fflags & CONSTANT_FOLDING)
+      fold_constants(unit->ast);
+
+    /* Free file contents & tokens */
+    free_tokens(tokens);
+    file_free(&unit->file);
+  }
 
   if (opts.dflags & DUMP_SYMBOLS)
     dump_symbols();
@@ -232,7 +231,12 @@ int main(int argc, char **argv) {
   if (opts.dflags & DUMP_IR)
     dump_ir(prog);
 
-  warn_unused(ast);
+  for (size_t id = 0; id < opts.nsources; id++) {
+    CompilationUnit *unit = &units[id];
+
+    LOG_WARN("warnings for file: %s\n", unit->file.filepath);
+    warn_unused(unit->ast);
+  }
 
   /* Codegen */
   Target target = nasm_x86_64_generate(prog);

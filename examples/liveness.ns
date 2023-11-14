@@ -1,9 +1,7 @@
-func main() -> int {
+func main() {
   var x = 16;
   var y = 4;
 
   var w = x + y;
   var z = y;
-
-  return w;
 }

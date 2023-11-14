@@ -56,6 +56,22 @@ char *format(const char *fmt, ...) {
   return str;
 }
 
+int count_digits(int n) {
+  int count = 0;
+
+  if (n < 0) {
+    n = -n;
+    count++;
+  }
+
+  do {
+    n /= 10;
+    count++;
+  } while (n != 0);
+
+  return count;
+}
+
 char *randstr(size_t len) {
   static const char alphabet[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 #define ALPHABET_LENGTH sizeof(alphabet)/sizeof(alphabet[0])
@@ -69,22 +85,22 @@ char *randstr(size_t len) {
 #undef ALPHABET_LENGTH
 }
 
-char *readfile(const char *filename) {
+char *readfile(const char *filename, size_t *size) {
   FILE *f = NULL;
   if (!(f = fopen(filename, "r")))
-    LOG_FATAL("couldn't open file %s: %s", filename, strerror(errno));
+    LOG_FATAL("%s: %s", filename, strerror(errno));
 
   fseek(f, 0L, SEEK_END);
-  size_t file_size = ftell(f);
+  *size = ftell(f);
   rewind(f);
 
-  char *text = calloc(file_size + 1, sizeof(char));
+  char *text = calloc(*size + 1, sizeof(char));
   if (!text)
-    LOG_FATAL("no memory for readfile");
+    LOG_FATAL("calloc failed in readfile");
 
-  size_t nread = fread(text, sizeof(char), file_size, f);
-  if (nread != file_size)
-    LOG_FATAL("only read %zu/%zu bytes from file %s\n", nread, file_size, filename);
+  size_t nread = fread(text, sizeof(char), *size, f);
+  if (nread != *size)
+    LOG_FATAL("only read %zu/%zu bytes from file %s\n", nread, *size, filename);
 
   text[nread] = 0;
   fclose(f);

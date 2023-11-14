@@ -79,6 +79,7 @@ struct ControlGraph {
 };
 
 BasicBlock *lower_to_ir(Node *node);
+void dump_ir(BasicBlock *prog);
 void dump_instruction(Instruction *inst);
 
 #endif

@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "compiler.h"
+#include "defs.h"
 #include "types.h"
 
 typedef struct Node Node;

@@ -15,17 +15,18 @@
 #define MAX(x, y) (x > y) ? x : y
 #define MIN(x, y) (x > y) ? y : x
 
-#define ANSI_RED     "\x1b[1;31m"
-#define ANSI_GREEN   "\x1b[1;32m"
-#define ANSI_YELLOW  "\x1b[1;33m"
-#define ANSI_RESET   "\x1b[0m"
+#define ANSI_RED        "\x1b[1;31m"
+#define ANSI_BG         "\x1b[1;103m"
+#define ANSI_GREEN      "\x1b[1;32m"
+#define ANSI_YELLOW     "\x1b[1;33m"
+#define ANSI_RESET      "\x1b[0m"
 
 #define LOG_INFO(fmt, ...)  fprintf(stderr, ANSI_GREEN "info: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...)  fprintf(stderr, ANSI_YELLOW "warn: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
 #define LOG_ERROR(fmt, ...) fprintf(stderr, ANSI_RED "error: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
 #define LOG_FATAL(fmt, ...) \
   do { \
-    fprintf(stderr, "fatal: "fmt"\n", ##__VA_ARGS__); \
+    fprintf(stderr, ANSI_BG "fatal:" ANSI_RESET " "fmt"\n", ##__VA_ARGS__); \
     exit(1); \
   } while (0)
 
@@ -38,8 +39,9 @@ double stod(const char *s, size_t len);
 
 char *format(const char *fmt, ...);
 char *randstr(size_t len);
+int count_digits(int n);
 
-char *readfile(const char *filename);
+char *readfile(const char *filename, size_t *size);
 int spawn_subprocess(char *prog, char *const args[]);
 
 #endif

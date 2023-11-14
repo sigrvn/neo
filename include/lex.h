@@ -2,6 +2,7 @@
 #define NEO_LEX_H
 
 #include "compiler.h"
+#include "defs.h"
 
 typedef enum {
   TOK_UNKNOWN,
@@ -23,7 +24,7 @@ struct Token {
   Token *next;
 };
 
-Token *lex(char *source);
+Token *lex(File *file);
 
 void dump_tokens(Token *tokens);
 void free_tokens(Token *tokens);

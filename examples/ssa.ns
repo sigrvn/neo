@@ -6,7 +6,7 @@ func ssa1() {
 }
 */
 
-func main() -> int {
+func main() {
     var x = 5;
     x = x - 3;
     var y = 0;
@@ -21,5 +21,4 @@ func main() -> int {
 
     w = x - y;
     var z = x + y;
-    return z;
 }

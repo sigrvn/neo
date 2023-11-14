@@ -390,3 +390,18 @@ void dump_instruction(Instruction *inst) {
   }
   printf(" (start %d, end %d)\n", inst->start, inst->end);
 }
+
+void dump_ir(BasicBlock *prog) {
+  BasicBlock *block = prog;
+  int pc = 0;
+  while (block) {
+    printf("[BasicBlock %s#%d]\n", block->tag, block->id);
+    Instruction *inst = block->head;
+    while (inst) {
+      printf(" %d | ", pc++);
+      dump_instruction(inst);
+      inst = inst->next;
+    }
+    block = block->next;
+  }
+}
