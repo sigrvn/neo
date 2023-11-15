@@ -198,31 +198,31 @@ static void parse_factor(Node **stack) {
 static void parse_term(Node **stack) {
   parse_factor(stack);
   for (;;) {
-    int bin_op = OP_UNKNOWN;
+    int bin_op = 0;
     if      (match("*")) { bin_op = BIN_MUL; }
     else if (match("/")) { bin_op = BIN_DIV; }
 
-    if (bin_op == OP_UNKNOWN) { break; }
+    if (bin_op == 0) { break; }
     Node *node = parse_binary(stack, bin_op);
     push_node(stack, node);
   }
 }
 
 static void _parse_expression(Node **stack) {
-  int un_op = OP_UNKNOWN;
+  int un_op = 0;
   if      (match("-")) { un_op = UN_NEG; }
   else if (match("!")) { un_op = UN_NOT; }
   else if (match("*")) { un_op = UN_DEREF; }
 
   parse_term(stack);
 
-  if (un_op != OP_UNKNOWN) {
+  if (un_op != 0) {
     Node *node = parse_unary(stack, un_op);
     push_node(stack, node);
   }
 
   for (;;) {
-    int bin_op = OP_UNKNOWN;
+    int bin_op = 0;
     if      (match("+"))   { bin_op = BIN_ADD; }
     else if (match("-"))   { bin_op = BIN_SUB; }
     else if (match("=="))  { bin_op = BIN_CMP; }
@@ -232,7 +232,7 @@ static void _parse_expression(Node **stack) {
     else if (match("<="))  { bin_op = BIN_CMP_LT_EQ; }
     else if (match(">="))  { bin_op = BIN_CMP_GT_EQ; }
 
-    if (bin_op == OP_UNKNOWN) { break; }
+    if (bin_op == 0) { break; }
     Node *node = parse_binary(stack, bin_op);
     push_node(stack, node);
   }
@@ -328,7 +328,6 @@ static Node *parse_vardecl() {
     }
   }
 
-  expect(";");
   return node;
 }
 
@@ -344,14 +343,12 @@ static Node *parse_assignment(Token *ident) {
 
   /* TODO: add typechecking to see if expression matches declared type for var */
 
-  expect(";");
   return node;
 }
 
 static Node *parse_return() {
   Node *node = node_new(ND_RET_STMT);
   node->ret.value = parse_expression();
-  expect(";");
   return node;
 }
 
@@ -391,12 +388,17 @@ static Node *parse_block() {
       stmt = parse_else_statement();
     } else if (match("return")) {
       stmt = parse_return();
+    }
+
+    if (stmt) {
+      /* Allow semicolons at the end of statements in a block */
+      match(";");
+      cur = cur->next = stmt;
     } else {
       fail_at(tok, "invalid token '%.*s' while parsing block", TOKSTR(tok));
     }
-
-    cur = cur->next = stmt;
   }
+
 
   return body.next;
 }
@@ -477,8 +479,9 @@ static Node *parse_funcdecl() {
   return node;
 }
 
-Node *parse(Token *tokens) {
+Node *parse(File *file, Token *tokens) {
   /* Initialize parser state */
+  currfile = file;
   scope = &SYMTAB;
   prev_tok = NULL;
   tok = tokens;

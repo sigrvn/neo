@@ -6,7 +6,7 @@
 #include "ir.h"
 #include "util.h"
 
-static const char *OPCODES[] = {
+const char *OPCODES[] = {
   [OP_ADD] = "+",
   [OP_NEG] = "-",
   [OP_SUB] = "-",
@@ -26,7 +26,6 @@ typedef struct {
   int ntemps;
   int nblocks;
 
-  HashMap vars;
   HashMap exprs;
 
   BasicBlock *head, *tail;
@@ -36,13 +35,11 @@ static void emit(IREmitter *, Node *);
 
 static void emitter_init(IREmitter *e) {
   e->pc = e->ntemps = e->nblocks = 0;
-  hashmap_init(&e->vars);
   hashmap_init(&e->exprs);
   e->head = e->tail = NULL;
 }
 
 static void emitter_deinit(IREmitter *e) {
-  hashmap_free(&e->vars);
   hashmap_free(&e->exprs);
 }
 
@@ -69,7 +66,6 @@ static BasicBlock *block_new(int id, char *tag) {
 
 static void emitter_add_block(IREmitter *e, char *tag) {
   BasicBlock *new_block = block_new(e->nblocks++, tag);
-
   if (!e->tail) {
     e->head = e->tail = new_block;
   } else {
@@ -142,6 +138,8 @@ static void instruction_add_operands_from_node(IREmitter *e, Instruction *inst, 
        * assign the value to this instruction */
       emit(e, node);
       Instruction *temp = e->tail->tail;
+      LOG_TRACE("inserting temporary instruction for operation at line %d, col %d",
+          node->span.line, node->span.col);
       instruction_add_operand(inst, temp->assignee, O_VARIABLE);
   }
 }
@@ -259,7 +257,6 @@ static void emit(IREmitter *e, Node *node) {
     case ND_CALL_EXPR: emit_call(e, node); break;
     case ND_UNARY_EXPR: emit_unary_op(e, node); break;
     case ND_BINARY_EXPR: emit_binary_op(e, node); break;
-                         /* Leaf node, return itself */
     case ND_VALUE_EXPR:
     case ND_REF_EXPR:
     default: LOG_FATAL("cannot emit IR from node: %d", node->kind);
@@ -282,7 +279,7 @@ void calculate_live_intervals(IREmitter *e) {
         int end = (int)hashmap_lookup(&live, inst->assignee);
         if (e->pc > end) {
           inst->opcode = OP_DEAD;
-          LOG_WARN("dead variable '%s' at line %d, col %d",
+          LOG_TRACE("dead variable '%s' at line %d, col %d",
               inst->assignee, inst->span.line, inst->span.col);
           goto next;
         }

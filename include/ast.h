@@ -38,7 +38,6 @@ typedef struct {
 
 /* NOTE: the order of these matter */
 typedef enum {
-  OP_UNKNOWN = 0,
   UN_NEG,
   UN_NOT,
   UN_DEREF,

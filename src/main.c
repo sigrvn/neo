@@ -60,7 +60,7 @@ void set_dump_flag(int *dflags, const char *arg) {
     [DUMP_IR] = "ir",
   };
 
-  for (int i = DUMP_TOKENS; i < DUMP_IR; i <<= 1) {
+  for (int i = DUMP_TOKENS; i <= DUMP_IR; i <<= 1) {
     if (strcmp(arg, dump_map[i]) == 0)
       *dflags |= i;
   }
@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
       dump_tokens(tokens);
 
     /* Parsing */
-    unit->ast = parse(tokens);
+    unit->ast = parse(&unit->file, tokens);
     if (opts.dflags & DUMP_AST)
       dump_node(unit->ast, 0);
 

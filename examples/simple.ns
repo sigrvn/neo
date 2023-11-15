@@ -1,11 +1,11 @@
-var foo: bool = false;
+var foo: bool = false
 
 func add_two(x: int, y: int) -> int {
-    return x + y;
+    return x + y
 }
 
 func main() {
-    var num = -1 + 2 * 3;
-    num = num;
-    var other = 2 * 3;
+    var num = -1 + 2 * 3
+    num = num
+    var other = 2 * 3
 }

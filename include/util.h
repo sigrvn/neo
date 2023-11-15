@@ -19,8 +19,10 @@
 #define ANSI_BG         "\x1b[1;103m"
 #define ANSI_GREEN      "\x1b[1;32m"
 #define ANSI_YELLOW     "\x1b[1;33m"
+#define ANSI_CYAN       "\x1b[1;36m"
 #define ANSI_RESET      "\x1b[0m"
 
+#define LOG_TRACE(fmt, ...)  fprintf(stderr, ANSI_CYAN "trace: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
 #define LOG_INFO(fmt, ...)  fprintf(stderr, ANSI_GREEN "info: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...)  fprintf(stderr, ANSI_YELLOW "warn: " ANSI_RESET fmt "\n", ##__VA_ARGS__)
 #define LOG_ERROR(fmt, ...) fprintf(stderr, ANSI_RED "error: " ANSI_RESET fmt "\n", ##__VA_ARGS__)

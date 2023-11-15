@@ -388,13 +388,12 @@ static void compile_instruction(Instruction *inst) {
           inst->assignee, inst->span.line, inst->span.col);
       break;
     default:
-      LOG_FATAL("compilation not supported for opcode: %d", inst->opcode);
+      LOG_FATAL("compilation not supported for opcode: %s", OPCODES[inst->opcode]);
   }
 }
 
 static void compile_block(BasicBlock *block) {
   if (!block) return;
-
   Instruction *inst = block->head;
   while (inst) {
     compile_instruction(inst);

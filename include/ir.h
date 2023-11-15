@@ -33,7 +33,7 @@ typedef enum {
   OP_DEAD
 } Opcode;
 
-#define MAX_OPERANDS 2
+extern const char *OPCODES[];
 
 typedef enum {
     O_UNKNOWN = 0,
@@ -51,6 +51,7 @@ typedef struct {
   };
 } Operand;
 
+#define MAX_OPERANDS 2
 typedef struct Instruction Instruction;
 struct Instruction {
   Opcode opcode;
@@ -80,11 +81,6 @@ struct BasicBlock {
 
   BasicBlock **pred, **succ;
   BasicBlock *next, *prev;
-};
-
-struct ControlGraph {
-  int pc;
-  BasicBlock *entry, *exit;
 };
 
 BasicBlock *lower_to_ir(Node *node);
