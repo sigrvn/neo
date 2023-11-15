@@ -6,6 +6,21 @@
 #include "ir.h"
 #include "util.h"
 
+static const char *OPCODES[] = {
+  [OP_ADD] = "+",
+  [OP_NEG] = "-",
+  [OP_SUB] = "-",
+  [OP_MUL] = "*",
+  [OP_DIV] = "/",
+  [OP_NOT] = "!",
+  [OP_CMP] = "==",
+  [OP_CMP_NOT] = "!=",
+  [OP_CMP_LT] = "<",
+  [OP_CMP_GT] = ">",
+  [OP_CMP_LT_EQ] = "<=",
+  [OP_CMP_GT_EQ] = ">=",
+};
+
 typedef struct {
   int pc;
   int ntemps;
@@ -97,7 +112,7 @@ static char *encode_instruction(Instruction *inst) {
 
 static void instruction_add_operand(Instruction *inst, void *value, int kind) {
   if (inst->nopers == MAX_OPERANDS)
-    LOG_FATAL("too many operands for opcode %d", inst->opcode);
+    LOG_FATAL("too many operands for opcode '%s'", OPCODES[inst->opcode]);
 
   inst->operands[inst->nopers].kind = kind;
   switch (kind) {
@@ -127,7 +142,7 @@ static void instruction_add_operands_from_node(IREmitter *e, Instruction *inst, 
        * assign the value to this instruction */
       emit(e, node);
       Instruction *temp = e->tail->tail;
-      instruction_add_operand(temp, temp->assignee, O_VARIABLE);
+      instruction_add_operand(inst, temp->assignee, O_VARIABLE);
   }
 }
 
@@ -244,7 +259,7 @@ static void emit(IREmitter *e, Node *node) {
     case ND_CALL_EXPR: emit_call(e, node); break;
     case ND_UNARY_EXPR: emit_unary_op(e, node); break;
     case ND_BINARY_EXPR: emit_binary_op(e, node); break;
-    /* Leaf node, return itself */
+                         /* Leaf node, return itself */
     case ND_VALUE_EXPR:
     case ND_REF_EXPR:
     default: LOG_FATAL("cannot emit IR from node: %d", node->kind);
@@ -308,38 +323,19 @@ BasicBlock *lower_to_ir(Node *node) {
   return e.head;
 }
 
-void dump_operand(Instruction *inst, size_t index) {
-  switch (inst->operands[index].kind) {
+void dump_operand(Operand *operand) {
+  switch (operand->kind) {
     case O_VALUE:
-      dump_value(&inst->operands[index].val);
+      dump_value(&operand->val);
       break;
     case O_VARIABLE:
-      printf("%s", inst->operands[index].var);
+      printf("%s", operand->var);
       break;
     case O_LABEL:
-      printf("%s", inst->operands[index].label);
+      printf("%s", operand->label);
       break;
-    default: LOG_FATAL("invalid operand kind: %d", inst->operands[index].kind);
+    default: LOG_FATAL("invalid operand kind: %d", operand->kind);
   }
-}
-
-char *opcode_str(int opcode) {
-  switch (opcode) {
-    case OP_ADD: return "+";
-    case OP_NEG:
-    case OP_SUB: return "-";
-    case OP_MUL: return "*";
-    case OP_DIV: return "/";
-    case OP_NOT: return "!";
-    case OP_CMP: return "==";
-    case OP_CMP_NOT: return "!=";
-    case OP_CMP_LT: return "<";
-    case OP_CMP_GT: return ">";
-    case OP_CMP_LT_EQ: return "<=";
-    case OP_CMP_GT_EQ: return ">=";
-    default: LOG_FATAL("invalid opcode %d", opcode);
-  }
-  return "";
 }
 
 void dump_instruction(Instruction *inst) {
@@ -347,19 +343,19 @@ void dump_instruction(Instruction *inst) {
     case OP_DEF:
       assert(inst->nopers == 1);
       printf("def ");
-      dump_operand(inst, 0);
+      dump_operand(&inst->operands[0]);
       break;
     case OP_ASSIGN:
       assert(inst->nopers == 1);
       printf("  %s := ", inst->assignee);
-      dump_operand(inst, 0);
+      dump_operand(&inst->operands[0]);
       break;
     case OP_NEG:
     case OP_NOT:
       assert(inst->nopers == 1);
       printf("  %s := ", inst->assignee);
-      printf(opcode_str(inst->opcode));
-      dump_operand(inst, 0);
+      printf(OPCODES[inst->opcode]);
+      dump_operand(&inst->operands[0]);
       break;
     case OP_ADD: // Binary Ops
     case OP_SUB:
@@ -373,14 +369,14 @@ void dump_instruction(Instruction *inst) {
     case OP_CMP_GT_EQ:
       assert(inst->nopers == 2);
       printf("  %s := ", inst->assignee);
-      dump_operand(inst, 0);
-      printf(opcode_str(inst->opcode));
-      dump_operand(inst, 1);
+      dump_operand(&inst->operands[0]);
+      printf(OPCODES[inst->opcode]);
+      dump_operand(&inst->operands[1]);
       break;
     case OP_RET:
       assert(inst->nopers == 1);
       printf("  ret ");
-      dump_operand(inst, 0);
+      dump_operand(&inst->operands[0]);
       break;
     case OP_DEAD:
       printf("  <dead @ %d:%d>\n", inst->span.line, inst->span.col);

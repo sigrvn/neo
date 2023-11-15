@@ -18,6 +18,7 @@ static Scope *scope     = NULL;
 static Token *prev_tok  = NULL;
 static Token *tok       = NULL;
 
+/* TODO: Get line context at error location */
 static void fail_at(Token *tok, const char *fmt, ...) {
   fprintf(stderr, "%s:%d:%d: ",
       currfile->filepath,
@@ -60,10 +61,8 @@ static bool match(const char *str) {
 }
 
 static Token *expect(const char *str) {
-  if (!match(str)) {
-    LOG_FATAL("at line %d, col %d: expected '%s', got '%.*s' instead",
-        tok->span.line, tok->span.col, str, tok->len, tok->text);
-  }
+  if (!match(str))
+    fail_at(tok, "expected '%s', got '%.*s' ", TOKSTR(tok));
   return prev_tok;
 }
 
@@ -126,17 +125,13 @@ static Node *parse_call(Token *ident) {
   Node *node = node_new(ND_CALL_EXPR);
 
   Symbol *symbol = find_symbol(scope, ident->text, ident->len);
-  if (!symbol) {
-    LOG_FATAL("at line %d, col %d: unknown function '%.*s'",
-        ident->span.line, ident->span.col, ident->len, ident->text);
-  }
-  else if (symbol->kind != SYM_FUNC) {
-    LOG_FATAL("at line %d, col %d: symbol '%s' is not a function. (kind: %d)",
-        ident->span.line, ident->span.col, symbol->name, symbol->type->kind);
-  }
+  if (!symbol)
+    fail_at(ident, "unknown function '%.*s'", TOKSTR(ident));
+  else if (symbol->kind != SYM_FUNC)
+    fail_at(ident, "symbol '%s' is not a function", symbol->name);
 
   node->type = symbol->node->func.return_type;
-  node->call.name = format("%.*s", ident->len, ident->text);
+  node->call.name = format("%.*s", TOKSTR(ident));
 
   expect("(");
 
@@ -195,8 +190,7 @@ static void parse_factor(Node **stack) {
   } else if (match("false")) {
     node = parse_boolean(false);
   } else {
-    LOG_FATAL("at line %d, col %d: invalid token '%.*s' while parsing expression",
-        tok->span.line, tok->span.col, tok->len, tok->text);
+    fail_at(tok, "invalid token '%.*s' while parsing expression", TOKSTR(tok));
   }
   push_node(stack, node);
 }
@@ -268,22 +262,15 @@ static Node *parse_else_statement() {
 }
 
 static const Type* parse_type() {
-  if (tok->kind != TOK_IDENT) {
-    LOG_FATAL("at line %d, col %d: expected identifier for type, got '%.*s' instead",
-        tok->span.line, tok->span.col, tok->len, tok->text);
-  }
+  if (tok->kind != TOK_IDENT)
+    fail_at(tok, "expected identifier for type, got '%.*s'", TOKSTR(tok));
 
   /* Search for type symbol in current scope */
   Symbol *symbol = find_symbol(scope, tok->text, tok->len);
-  if (!symbol) {
-    LOG_FATAL("at line %d, col %d: unknown type '%.*s'",
-        tok->span.line, tok->span.col, tok->len, tok->text);
-  }
-
-  if (symbol->kind != SYM_TYPE) {
-    LOG_FATAL("at line %d, col %d: symbol '%s' is not a type",
-        tok->span.line, tok->span.col, symbol->name);
-  }
+  if (!symbol)
+    fail_at(tok, "unknown type '%.*s'", TOKSTR(tok));
+  else if (symbol->kind != SYM_TYPE)
+    fail_at(tok, "symbol '%s' is not a type", symbol->name);
 
   advance();
 
@@ -296,17 +283,13 @@ static Node *parse_varref(Token *ident) {
   Node *node = node_new(ND_REF_EXPR);
 
   Symbol *symbol = find_symbol(scope, ident->text, ident->len);
-  if (!symbol) {
-    printf("couldn't find symbol '%.*s'\n", ident->len, ident->text);
-    LOG_FATAL("at line %d, col %d: unknown variable '%.*s'",
-        ident->span.line, ident->span.col, ident->len, ident->text);
-  } else if (symbol->kind != SYM_VAR) {
-    LOG_FATAL("at line %d, col %d: symbol '%s' is not a variable. (kind: %d)",
-        ident->span.line, ident->span.col, symbol->name, symbol->type->kind);
-  }
+  if (!symbol)
+    fail_at(ident, "unknown variable '%.*s'", TOKSTR(ident));
+  else if (symbol->kind != SYM_VAR)
+    fail_at(ident, "symbol '%s' is not a variable", symbol->name);
 
   node->type = symbol->node->var.type;
-  node->ref = format("%.*s", ident->len, ident->text);
+  node->ref = format("%.*s", TOKSTR(ident));
 
   return node;
 }
@@ -316,17 +299,15 @@ static Node *parse_vardecl() {
   assert(ident->kind == TOK_IDENT);
 
   Node *node = node_new(ND_VAR_DECL);
-  node->var.name = format("%.*s", ident->len, ident->text);
+  node->var.name = format("%.*s", TOKSTR(ident));
 
   /* Insert variable into current scope */
   Symbol *symbol = symbol_new(SYM_VAR);
-  symbol->name = format("%.*s", ident->len, ident->text);
+  symbol->name = format("%.*s", TOKSTR(ident));
   symbol->node = node;
 
-  if (add_symbol(scope, symbol)) {
-    LOG_FATAL("at line %d, col %d: variable '%.*s' redeclared in scope",
-        ident->span.line, ident->span.col, ident->len, ident->text);
-  }
+  if (add_symbol(scope, symbol))
+    fail_at(ident, "variable '%.*s' redeclared in scope", TOKSTR(ident));
 
   advance(); /* advance from <identifier> */
 
@@ -354,13 +335,11 @@ static Node *parse_vardecl() {
 static Node *parse_assignment(Token *ident) {
   assert(ident->kind == TOK_IDENT);
 
-  if (!find_symbol(scope, ident->text, ident->len)) {
-    LOG_FATAL("at line %d, col %d: unknown variable '%.*s'",
-        ident->span.line, ident->span.col, ident->len, ident->text);
-  }
+  if (!find_symbol(scope, ident->text, ident->len))
+    fail_at(ident, "unknown variable '%.*s'", TOKSTR(ident));
 
   Node *node = node_new(ND_ASSIGN_STMT);
-  node->assign.name = format("%.*s", ident->len, ident->text);
+  node->assign.name = format("%.*s", TOKSTR(ident));
   node->assign.value = parse_expression();
 
   /* TODO: add typechecking to see if expression matches declared type for var */
@@ -413,8 +392,7 @@ static Node *parse_block() {
     } else if (match("return")) {
       stmt = parse_return();
     } else {
-      LOG_FATAL("at line %d, col %d: invalid token '%.*s' while parsing block",
-          tok->span.line, tok->span.col, tok->len, tok->text);
+      fail_at(tok, "invalid token '%.*s' while parsing block", TOKSTR(tok));
     }
 
     cur = cur->next = stmt;
@@ -424,23 +402,19 @@ static Node *parse_block() {
 }
 
 static Node *parse_param() {
-  if (tok->kind != TOK_IDENT) {
-    LOG_FATAL("at line %d, col %d: expected identifier for function parameter, got '%.*s' instead",
-        tok->span.line, tok->span.col, tok->len, tok->text);
-  }
+  if (tok->kind != TOK_IDENT)
+    fail_at(tok, "expected identifier for function parameter, got '%.*s' ", TOKSTR(tok));
 
   Node *node = node_new(ND_VAR_DECL);
-  node->var.name = format("%.*s", tok->len, tok->text);
+  node->var.name = format("%.*s", TOKSTR(tok));
 
   /* Add paramter to function scope as a variable */
   Symbol *symbol = symbol_new(SYM_VAR);
-  symbol->name = format("%.*s", tok->len, tok->text);
+  symbol->name = format("%.*s", TOKSTR(tok));
   symbol->node = node;
 
-  if (add_symbol(scope, symbol)) {
-    LOG_FATAL("at line %d, col %d: function parameter '%s' redeclared in scope",
-        tok->span.line, tok->span.col, node->var.name);
-  }
+  if (add_symbol(scope, symbol))
+    fail_at(tok, "function parameter '%s' redeclared in scope", node->var.name);
 
   advance(); /* advance from <identifier> */
 
@@ -452,22 +426,19 @@ static Node *parse_param() {
 }
 
 static Node *parse_funcdecl() {
-  if (tok->kind != TOK_IDENT) {
-    fail_at(tok, "expected identifier for function, got '%.*s' instead",
-        tok->len, tok->text);
-  }
+  if (tok->kind != TOK_IDENT)
+    fail_at(tok, "expected identifier for function, got '%.*s'", TOKSTR(tok));
 
   Node *node = node_new(ND_FUNC_DECL);
-  node->func.name = format("%.*s", tok->len, tok->text);
+  node->func.name = format("%.*s", TOKSTR(tok));
 
   Symbol *symbol = symbol_new(SYM_FUNC);
-  symbol->name = format("%.*s", tok->len, tok->text);
+  symbol->name = format("%.*s", TOKSTR(tok));
   symbol->node = node;
 
   /* Insert function into current scope */
-  if (add_symbol(scope, symbol)) {
+  if (add_symbol(scope, symbol))
     fail_at(tok, "function '%s' redeclared in scope", node->func.name);
-  }
 
   /* Create & enter function scope */
   enter_scope(node->func.name);
@@ -483,19 +454,14 @@ static Node *parse_funcdecl() {
 
   expect("(");
   for (;;) {
-    if (match(")"))
-      break;
+    if (match(")")) { break; }
 
     /* Add paramter to list */
     cur = cur->next = parse_param();
 
     /* If there is a comma after this parameter, continue parsing params */
-    if (match(",")) {
-      continue;
-    } else {
-      expect(")");
-      break;
-    }
+    if (match(",")) { continue; }
+    else { expect(")"); break; }
   }
   node->func.params = params.next;
 
@@ -527,8 +493,7 @@ Node *parse(Token *tokens) {
     } else if (match("func")) {
       decl = parse_funcdecl();
     } else {
-      fail_at(tok, "invalid token '%.*s' while parsing top-level",
-        tok->len, tok->text);
+      fail_at(tok, "invalid token '%.*s' while parsing module", TOKSTR(tok));
     }
     cur = cur->next = decl;
   }

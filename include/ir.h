@@ -35,27 +35,34 @@ typedef enum {
 
 #define MAX_OPERANDS 2
 
+typedef enum {
+    O_UNKNOWN = 0,
+    O_VALUE,
+    O_VARIABLE,
+    O_LABEL
+} OperandKind;
+
+typedef struct {
+  OperandKind kind;
+  union {
+    Value val;
+    char *var;
+    char *label;
+  };
+} Operand;
+
 typedef struct Instruction Instruction;
 struct Instruction {
   Opcode opcode;
   int start, end;
   char *assignee;
-  int nopers;
-  struct {
-    enum {
-      O_UNKNOWN = 0,
-      O_VALUE,
-      O_VARIABLE,
-      O_LABEL
-    } kind;
-    union {
-      Value val;
-      char *var;
-      char *label;
-    };
-  } operands[MAX_OPERANDS];
+
+  uint8_t nopers;
+  Operand operands[MAX_OPERANDS];
+
   Span span;
   Type *type;
+
   Instruction *next;
   Instruction *prev;
 };
@@ -68,7 +75,9 @@ typedef struct BasicBlock BasicBlock;
 struct BasicBlock {
   int id;
   char *tag;
+
   Instruction *head, *tail;
+
   BasicBlock **pred, **succ;
   BasicBlock *next, *prev;
 };

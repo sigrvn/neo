@@ -8,5 +8,4 @@ func main() {
     var num = -1 + 2 * 3;
     num = num;
     var other = 2 * 3;
-    println(num)
 }

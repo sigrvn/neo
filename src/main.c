@@ -43,7 +43,7 @@ typedef struct {
   bool verbose;
 } CompilerOpts;
 
-#define OPTSTRING "d:o:v"
+#define OPTSTRING "d:f:o:v"
 static struct option long_options[] = {
   {"dump", required_argument, 0, 'd'},
   {"feature", required_argument, 0, 'f'},
@@ -69,9 +69,10 @@ void set_dump_flag(int *dflags, const char *arg) {
 void set_feature_flag(int *fflags, const char *arg) {
   static const Feature feature_map[] = {
     {"no-fold", CONSTANT_FOLDING},
+    {NULL, 0},
   };
 
-  for (const Feature *f = feature_map; f; f++) {
+  for (const Feature *f = feature_map; f->name; f++) {
     if (strcmp(arg, f->name) == 0)
       *fflags ^= f->val;
   }
@@ -219,11 +220,10 @@ int main(int argc, char **argv) {
     dump_symbols();
 
   Symbol *entry_point = find_symbol(&SYMTAB, "main", 4);
-  if (!entry_point) {
+  if (!entry_point)
     LOG_FATAL("function 'main' is missing!");
-  } else if (entry_point->kind != SYM_FUNC) {
+  else if (entry_point->kind != SYM_FUNC)
     LOG_FATAL("symbol 'main' is not a function!");
-  }
 
   /* Control flow analysis */
   BasicBlock *prog = lower_to_ir(entry_point->node);
@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
   for (size_t id = 0; id < opts.nsources; id++) {
     CompilationUnit *unit = &units[id];
 
-    LOG_WARN("warnings for file: %s\n", unit->file.filepath);
+    LOG_WARN("warnings for file: %s", unit->file.filepath);
     warn_unused(unit->ast);
   }
 

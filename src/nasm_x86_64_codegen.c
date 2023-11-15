@@ -58,7 +58,7 @@ static RegisterData *regdata_new(int start, int end) {
 }
 
 typedef struct {
-  RegisterID rid;
+  const RegisterID rid;
   bool active;
   RegisterData *data;
 } Register;
@@ -186,22 +186,24 @@ static void _write_value(Value v) {
 
 /* Simple Linear Scan Register Allocator */
 static void save_register(Register *r) {
+  assert(r->data);
+
+  if (!stack) {
+    stack = r->data;
+  } else {
+    RegisterData *next = stack;
+    stack = r->data;
+    stack->next = next;
+  }
+
+  stack_length++;
+  stack_size_bytes += r->data->type->size;
+
+  r->active = false;
+  r->data = NULL;
+
   _writeln("push %s", regname(r));
 
-  RegisterData *data = r->data;
-  if (data) {
-    if (!stack) {
-      stack = data;
-    }
-    else {
-      RegisterData *next = stack;
-      stack = data;
-      stack->next = next;
-    }
-
-    stack_length++;
-    stack_size_bytes += data->type->size;
-  }
 #ifdef DEBUG
   printf("-> saved register '%s' to stack\n", regname(r));
   printf("-> stack_size: %ld (%ld bytes)\n", stack_length, stack_size_bytes);
@@ -209,7 +211,23 @@ static void save_register(Register *r) {
 }
 
 static void restore_register(Register *r) {
+  assert(stack);
+
+  RegisterData *data = stack;
+  stack = data->next;
+
+  stack_length--;
+  stack_size_bytes -= data->type->size;
+
+  r->active = true;
+  r->data = data;
+
   _writeln("pop %s", regname(r));
+
+#ifdef DEBUG
+  printf("-> restored register '%s'\n", regname(r));
+  printf("-> stack_size: %ld (%ld bytes)\n", stack_length, stack_size_bytes);
+#endif
 }
 
 static Register *find_available_register() {
@@ -236,9 +254,9 @@ static Register *find_available_register() {
 }
 
 static void release_register(Register *r) {
-  r->active = false;
   if (r->data)
     free(r->data);
+  r->active = false;
 }
 
 static Register *find_register_by_variable(const char *var) {
@@ -293,7 +311,7 @@ static Register *compile_assign(Instruction *inst) {
   return dest_register;
 }
 
-static Register *compile_add(Instruction *inst) {
+static Register *compile_binop(Instruction *inst) {
   assert(inst->nopers == 2);
   assert(inst->operands[0].kind != O_UNKNOWN);
   assert(inst->operands[0].kind != O_LABEL);
@@ -304,16 +322,23 @@ static Register *compile_add(Instruction *inst) {
   if (!dest_register)
     dest_register = put_variable_in_register(inst);
 
+  static const char *BINARY_OPS[] = {
+    [OP_ADD] = "add",
+    [OP_SUB] = "sub",
+    [OP_MUL] = "mul",
+    [OP_DIV] = "div",
+  };
+
+  const char *binop = BINARY_OPS[inst->opcode];
+
   uint8_t op_idx = 0;
   if (strcmp(inst->operands[0].var, dest_register->data->var) == 0) {
-    _write("add %s, ", regname(dest_register));
+    _write("%s %s, ", binop, regname(dest_register));
     op_idx = 1;
-  }
-  else if (strcmp(inst->operands[1].var, dest_register->data->var) == 0) {
-    _write("add %s, ", regname(dest_register));
+  } else if (strcmp(inst->operands[1].var, dest_register->data->var) == 0) {
+    _write("%s %s, ", binop, regname(dest_register));
     op_idx = 0;
-  }
-  else {
+  } else {
     Instruction temp = *inst;
     temp.opcode = OP_ASSIGN;
     temp.nopers = 1;
@@ -332,7 +357,6 @@ static Register *compile_add(Instruction *inst) {
         LOG_FATAL("operand '%s' is not in any register", inst->operands[op_idx].var);
       _write("%s", regname(src_register));
       break;
-    default: LOG_FATAL("shouldn't have gotten here...");
   }
 
   _write("\n");
@@ -347,9 +371,18 @@ static void compile_instruction(Instruction *inst) {
   switch (inst->opcode) {
     case OP_DEF:
       break;
-    case OP_ASSIGN: compile_assign(inst); break;
-    case OP_ADD: compile_add(inst); break;
-    case OP_RET: compile_return(inst); break;
+    case OP_ASSIGN:
+      compile_assign(inst);
+      break;
+    case OP_ADD:
+    case OP_SUB:
+    case OP_MUL:
+    case OP_DIV:
+      compile_binop(inst);
+      break;
+    case OP_RET:
+      compile_return(inst);
+      break;
     case OP_DEAD:
       LOG_WARN("ignoring dead variable '%s' at line %d, col %d",
           inst->assignee, inst->span.line, inst->span.col);
@@ -390,7 +423,7 @@ static void alloc_global_symbols() {
         int bytes_to_alloc = type->size / alloc;
         const char *directive = uninit_mem[alloc];
 
-        _write("%s: %s %d\n", symbol->name, directive, bytes_to_alloc);
+        _writeln("%s: %s %d", symbol->name, directive, bytes_to_alloc);
       }
     }
   }

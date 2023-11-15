@@ -4,6 +4,9 @@
 #include "compiler.h"
 #include "defs.h"
 
+#define TOKFMT "%.*s"
+#define TOKSTR(tok) (*tok).len, (*tok).text
+
 typedef enum {
   TOK_UNKNOWN,
   TOK_KEYWORD,

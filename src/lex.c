@@ -261,7 +261,7 @@ void dump_tokens(Token *tokens) {
   while (tok) {
     if (tok->kind == TOK_EOF)
       break;
-    printf("%.*s\n", tok->len, tok->text);
+    printf("%.*s\n", TOKSTR(tok));
     tok = tok->next;
   }
 }

@@ -2,6 +2,8 @@ func main() {
   var c: char = 'a';
 }
 
+/*
 func invalid_char() {
   var d: char = '';
 }
+*/
